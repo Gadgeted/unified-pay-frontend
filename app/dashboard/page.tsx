@@ -73,7 +73,7 @@ export default function DashboardPage() {
               ME
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-black text-white truncate">Maina Electronics</p>
+              <p className="text-xs font-black text-white truncate">{mockData.businessName}</p>
               <p className="text-[10px] font-medium text-slate-500 truncate">Merchant ID: live_1234</p>
             </div>
           </div>
