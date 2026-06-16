@@ -37,7 +37,7 @@ const MerchantDashboard = () => {
 
       const [analyticsRes, transactionsRes] = await Promise.all([
         fetch(`${cleanUrl}/analytics/dashboard`, { headers }),
-        fetch(`${cleanUrl}/analytics/recent-transactions?limit=10`, { headers })
+        fetch(`${cleanUrl}/analytics/recent-transactions?limit=100`, { headers })
       ]);
 
       if (!analyticsRes.ok || !transactionsRes.ok) {
