@@ -10,6 +10,7 @@ export default function DashboardPage() {
   return (
     <main>
       {/* Any layout wrappers like Sidebars or Navbar can go here */}
+      {/*  .... */}
       <MerchantDashboard />
     </main>
   );
