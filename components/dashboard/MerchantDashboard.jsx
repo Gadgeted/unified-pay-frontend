@@ -7,7 +7,7 @@ import {
 import { 
   ShieldCheck, LayoutDashboard, CreditCard, Box, Settings, LogOut, 
   Search, Bell, RefreshCw, DollarSign, Percent, TrendingUp, 
-  CheckCircle2, XCircle, AlertCircle 
+  CheckCircle2, XCircle, AlertCircle, X, ShoppingBag, Clock, Building, Hash, Smartphone
 } from 'lucide-react';
 import GatewaySettings from './GatewaySettings';
 
@@ -19,6 +19,7 @@ const MerchantDashboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentView, setCurrentView] = useState('analytics'); // options: 'analytics' | 'settings'
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
 
   const fetchDashboardData = async () => {
     try {
@@ -54,7 +55,7 @@ const MerchantDashboard = () => {
       console.error("Dashboard engine alignment error:", err);
       setError(err.message);
     } finally {
-      setLoading(false);
+      loading && setLoading(false);
       setIsRefreshing(false);
     }
   };
@@ -70,8 +71,8 @@ const MerchantDashboard = () => {
 
   // Filter transaction records instantly based on the top reference search string
   const filteredTransactions = transactions.filter(tx => 
-    tx.merchantReference.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tx.customerIdentifier.toLowerCase().includes(searchQuery.toLowerCase())
+    (tx.merchantReference && tx.merchantReference.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (tx.customerIdentifier && tx.customerIdentifier.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   if (loading) {
@@ -102,8 +103,20 @@ const MerchantDashboard = () => {
 
   const { metrics, chartData } = analytics;
 
+  // Safe JSON extraction for itemized items embedded inside transactions
+  const parseItemizedPayload = (payload) => {
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+    try {
+      return typeof payload === 'string' ? JSON.parse(payload) : [];
+    } catch (e) {
+      console.error("Itemized item array extraction failure:", e);
+      return [];
+    }
+  };
+
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
+    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans relative">
       
       {/* 1. SIDEBAR NAVIGATION PANEL */}
       <aside className="w-64 bg-slate-900 text-white flex flex-col justify-between p-5 border-r border-slate-800 shrink-0">
@@ -156,7 +169,7 @@ const MerchantDashboard = () => {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-black text-white truncate">Collins Maina Ngunyi</p>
-              <p className="text-[10px] font-bold text-slate-500 truncate">Merchant ID: live_ngunyi_shop</p>
+              <p className="text-[10px] font-bold text-slate-500 truncate">Merchant ID: ngunyi_shop</p>
             </div>
           </div>
           <button className="w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-bold text-red-400 hover:bg-red-500/10 transition-colors">
@@ -295,7 +308,7 @@ const MerchantDashboard = () => {
                             formatter={(value) => [`Ksh ${value.toLocaleString()}`, 'Processed']} 
                             contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', padding: '10px 14px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
                             labelStyle={{ color: '#94a3b8', fontSize: '10px', fontWeight: 'bold', marginBottom: '4px' }}
-                            itemStyle={{ color: '#white', fontSize: '12px', fontWeight: 'bold' }}
+                            itemStyle={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}
                           />
                           <Area type="monotone" dataKey="volume" stroke="#2563eb" strokeWidth={2.5} fillOpacity={1} fill="url(#colorVolumeLive)" />
                         </AreaChart>
@@ -354,7 +367,7 @@ const MerchantDashboard = () => {
                 <div className="px-6 py-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
                     <h4 className="text-sm font-black text-slate-900 tracking-tight">Live Transaction Registry</h4>
-                    <p className="text-[11px] font-medium text-slate-400 mt-0.5">Real-time inspection of incoming checkout request tasks</p>
+                    <p className="text-[11px] font-medium text-slate-400 mt-0.5">Real-time inspection of incoming checkout request tasks. Click a row to view itemized breakdowns.</p>
                   </div>
                   <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 border border-blue-100 px-3 py-1 rounded-full self-start sm:self-auto animate-pulse">
                     POLLING TUNNEL SECURE
@@ -382,9 +395,13 @@ const MerchantDashboard = () => {
                         </tr>
                       ) : (
                         filteredTransactions.map((tx) => (
-                          <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="px-6 py-4 font-bold text-slate-900 select-all">{tx.merchantReference}</td>
-                            <td className="px-6 py-4 text-slate-500 font-mono">{tx.customerIdentifier}</td>
+                          <tr 
+                            key={tx.id} 
+                            onClick={() => setSelectedTransaction(tx)}
+                            className="hover:bg-blue-50/40 cursor-pointer transition-colors"
+                          >
+                            <td className="px-6 py-4 font-bold text-slate-900 select-all">{tx.merchantReference || 'N/A'}</td>
+                            <td className="px-6 py-4 text-slate-500 font-mono">{tx.customerIdentifier || 'N/A'}</td>
                             <td className="px-6 py-4">
                               <span className="text-[10px] font-black px-2 py-0.5 bg-slate-100 border border-slate-200/60 rounded-md text-slate-600">
                                 {tx.paymentMethod}
@@ -432,6 +449,163 @@ const MerchantDashboard = () => {
 
         </div>
       </main>
+
+      {/* 3. SLIDING ITEMIZED TRANSACTION MODAL OVERLAY */}
+      {selectedTransaction && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-sm transition-all duration-200">
+          {/* Backdrop dismiss anchor */}
+          <div className="flex-1" onClick={() => setSelectedTransaction(null)} />
+          
+          <div className="w-full max-w-lg bg-white h-screen shadow-2xl flex flex-col justify-between border-l border-gray-100 animate-in slide-in-from-right duration-200">
+            
+            {/* Modal Header */}
+            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 bg-slate-900 text-white rounded-xl">
+                  <ShoppingBag className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Ledger Entry Audit</h3>
+                  <p className="text-[10px] text-slate-400 font-bold tracking-wider uppercase mt-0.5">Itemized Data Breakdown</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedTransaction(null)}
+                className="p-1.5 rounded-xl border border-gray-200 text-gray-400 hover:text-slate-900 bg-white hover:bg-gray-50 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body Context */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              
+              {/* Dynamic Banner Header */}
+              <div className={`p-4 rounded-2xl border flex items-center justify-between ${
+                selectedTransaction.status === 'SUCCESS'
+                  ? 'bg-emerald-50/60 border-emerald-100 text-emerald-900'
+                  : selectedTransaction.status === 'FAILED'
+                    ? 'bg-red-50/60 border-red-100 text-red-900'
+                    : 'bg-amber-50/60 border-amber-100 text-amber-900'
+              }`}>
+                <div>
+                  <p className="text-[10px] font-black tracking-wide uppercase opacity-60">Settlement Total Amount</p>
+                  <p className="text-2xl font-black tracking-tight mt-0.5">Ksh {selectedTransaction.amountGross.toFixed(2)}</p>
+                </div>
+                <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border bg-white ${
+                  selectedTransaction.status === 'SUCCESS' ? 'border-emerald-200 text-emerald-700' : selectedTransaction.status === 'FAILED' ? 'border-red-200 text-red-700' : 'border-amber-200 text-amber-700'
+                }`}>
+                  {selectedTransaction.status === 'SUCCESS' ? <CheckCircle2 className="w-3.5 h-3.5" /> : selectedTransaction.status === 'FAILED' ? <XCircle className="w-3.5 h-3.5" /> : <div className="animate-spin w-2.5 h-2.5 border-2 border-amber-700 border-t-transparent rounded-full" />}
+                  <span>{selectedTransaction.status}</span>
+                </div>
+              </div>
+
+              {/* Transaction Properties Metadata Matrix */}
+              <div className="space-y-3 bg-gray-50 border border-gray-100 p-4 rounded-2xl text-xs">
+                <h4 className="text-[11px] font-black text-slate-400 tracking-wider uppercase mb-1">Core Identifiers</h4>
+                
+                <div className="grid grid-cols-2 gap-y-3 font-medium">
+                  <div className="flex items-center space-x-2 text-slate-400">
+                    <Hash className="w-3.5 h-3.5 shrink-0" />
+                    <span>Invoice Reference</span>
+                  </div>
+                  <div className="text-slate-900 font-bold text-right select-all truncate">{selectedTransaction.merchantReference || 'N/A'}</div>
+
+                  <div className="flex items-center space-x-2 text-slate-400">
+                    <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                    <span>Customer Handset</span>
+                  </div>
+                  <div className="text-slate-900 font-mono text-right truncate">{selectedTransaction.customerIdentifier || 'N/A'}</div>
+
+                  <div className="flex items-center space-x-2 text-slate-400">
+                    <Building className="w-3.5 h-3.5 shrink-0" />
+                    <span>Gateway Token Ref</span>
+                  </div>
+                  <div className="text-slate-600 font-mono text-right select-all truncate">{selectedTransaction.gatewayReference || 'None Assigned'}</div>
+
+                  <div className="flex items-center space-x-2 text-slate-400">
+                    <Clock className="w-3.5 h-3.5 shrink-0" />
+                    <span>Timestamp Clock</span>
+                  </div>
+                  <div className="text-slate-600 text-right">
+                    {new Date(selectedTransaction.createdAt).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Real-time Itemized Snapshot Breakdown Panel */}
+              <div className="space-y-3">
+                <h4 className="text-[11px] font-black text-slate-400 tracking-wider uppercase">Itemized Cart Breakdown</h4>
+                
+                <div className="border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+                  <div className="bg-gray-50/70 border-b border-gray-100 px-4 py-2.5 grid grid-cols-12 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                    <div className="col-span-6">Product Description</div>
+                    <div className="col-span-2 text-center">Qty</div>
+                    <div className="col-span-4 text-right">Subtotal</div>
+                  </div>
+                  
+                  <div className="divide-y divide-gray-50 text-xs font-medium max-h-48 overflow-y-auto">
+                    {parseItemizedPayload(selectedTransaction.itemizedPayload).length === 0 ? (
+                      <div className="p-4 text-center text-slate-400 font-bold bg-gray-50/20 italic">
+                        No product breakdown attached. Shared legacy payment channel asset.
+                      </div>
+                    ) : (
+                      parseItemizedPayload(selectedTransaction.itemizedPayload).map((item, idx) => (
+                        <div key={idx} className="px-4 py-3 grid grid-cols-12 items-center hover:bg-gray-50/40">
+                          <div className="col-span-6 font-bold text-slate-900 truncate">{item.product_name || item.name || 'Unnamed Asset'}</div>
+                          <div className="col-span-2 text-center text-slate-500 font-mono">x{item.qty || item.quantity || 1}</div>
+                          <div className="col-span-4 text-right font-black text-slate-800">
+                            Ksh {((item.qty || item.quantity || 1) * (item.price || item.unit_price || 0)).toFixed(2)}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial Ledger Settlement Splits */}
+              <div className="bg-slate-900 text-white p-4 rounded-2xl space-y-2.5 text-xs">
+                <h4 className="text-[10px] font-black text-slate-400 tracking-wider uppercase">Platform Split Settlement</h4>
+                
+                <div className="flex justify-between font-medium">
+                  <span className="text-slate-400">Gross Deducted Volume:</span>
+                  <span className="font-bold">Ksh {selectedTransaction.amountGross.toFixed(2)}</span>
+                </div>
+                
+                <div className="flex justify-between font-medium">
+                  <span className="text-slate-400">Processing Platform Cut ({selectedTransaction.paymentMethod}):</span>
+                  <span className="text-red-400 font-bold">- Ksh {(selectedTransaction.processingFee || 0).toFixed(2)}</span>
+                </div>
+                
+                <div className="h-px bg-slate-800 my-1" />
+                
+                <div className="flex justify-between items-baseline">
+                  <span className="text-slate-300 font-bold">Net Merchant Remittance:</span>
+                  <span className="text-lg font-black text-emerald-400">
+                    Ksh {(selectedTransaction.amountNet || selectedTransaction.amountGross - (selectedTransaction.processingFee || 0)).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Bottom Operational Footer */}
+            <div className="p-4 border-t border-gray-100 bg-gray-50/70 flex items-center justify-between shrink-0">
+              <span className="text-[10px] font-bold text-gray-400 select-none">
+                Tx UUID: {selectedTransaction.id.substring(0, 18)}...
+              </span>
+              <button 
+                onClick={() => setSelectedTransaction(null)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md transition-all"
+              >
+                Close Audit View
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
